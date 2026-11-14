@@ -1,5 +1,14 @@
 # Changelog
 
+## v5.0.1
+- Fixed: when any player left the vehicle, the hull closed for everyone (and opened again when they came back). The vehicle's trigger boxes now ignore other players' invisible bodies; only your own character opens/closes the hull. Telemetry logs every cover change.
+
+## v5.0.0
+- UDP networking like most real-time games: snapshots/positions/input/ping go unreliable (a lost one is skipped, no freezes), joins/items/hose/buttons go reliable + ordered (numbered, acknowledged, re-sent). Messages packed into <=1200-byte packets, big ones fragmented. The host accepts UDP and TCP on the same port; a client chooses with `[Network] Transport = UDP | TCP`.
+- Resting boxes in the vehicle are "welded" on clients: host-side wobble under 2 cm / 3 deg is ignored, so they never shake.
+- Fixed: client camera shaking. The client's vehicle now advances exactly one physics step per step (a smooth clock instead of the wall clock, which gave two steps the same time and then a jump), clock corrections are gradual, and riders keep the game's own smoothing of their visible body.
+- HUD and telemetry show the transport and UDP stats (rtt, resent, lost, unacked). Protocol 6.
+
 ## v4.2.2
 - Fixed: on a driving vehicle clients walked slower to the left (backwards) than to the right. The game's own extra push is learned while standing and removed while walking too.
 

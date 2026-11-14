@@ -41,6 +41,10 @@ namespace FarCoopMod.Net
         private readonly ConcurrentQueue<Connection> pendingConnections = new ConcurrentQueue<Connection>();
 
         private TcpListener listener;
+        private UdpEndpoint udpHost;     // host: UDP game socket (same port number as TCP)
+        private UdpEndpoint udpClient;   // client: our UDP socket to the host
+        /// <summary>Client: transport used for joining ("UDP" or "TCP"). The host always accepts both.</summary>
+        public string JoinTransport = "UDP";
         private UdpClient discoveryResponder;
         private volatile bool hostRunning;
         private int searching;
@@ -83,7 +87,16 @@ namespace FarCoopMod.Net
                 Events.Enqueue("LAN search responder unavailable (" + e.Message + "). Clients can still join by IP.");
             }
 
-            Events.Enqueue("Hosting on port " + port + ". Local IPs: " + string.Join(", ", LocalIPv4s()));
+            try
+            {
+                udpHost = UdpEndpoint.Host(port, FarCoopPlugin.ProtocolVersion, c => pendingConnections.Enqueue(c), ev => Events.Enqueue(ev));
+            }
+            catch (Exception e)
+            {
+                Events.Enqueue("UDP unavailable on port " + port + " (" + e.Message + "). Players can still join with TCP.");
+            }
+
+            Events.Enqueue("Hosting on port " + port + " (TCP + UDP). Local IPs: " + string.Join(", ", LocalIPv4s()));
             return true;
         }
 
@@ -94,7 +107,7 @@ namespace FarCoopMod.Net
                 try
                 {
                     var client = listener.AcceptTcpClient();
-                    pendingConnections.Enqueue(new Connection(client));
+                    pendingConnections.Enqueue(new TcpConnection(client));
                 }
                 catch (Exception e)
                 {
@@ -133,8 +146,24 @@ namespace FarCoopMod.Net
             if (Interlocked.Exchange(ref connecting, 1) != 0) return;
             StopAll("connect");
             Role = NetRole.Client;
+            bool udp = !string.Equals(JoinTransport, "TCP", StringComparison.OrdinalIgnoreCase);
             new Thread(() =>
             {
+                if (udp)
+                {
+                    try
+                    {
+                        udpClient = UdpEndpoint.Join(ip, port, FarCoopPlugin.ProtocolVersion, TimeSpan.FromSeconds(8),
+                            c => pendingConnections.Enqueue(c), ev => Events.Enqueue(ev));
+                    }
+                    catch (Exception e)
+                    {
+                        Events.Enqueue("Connect (UDP) to " + ip + ":" + port + " failed: " + e.Message);
+                        Events.Enqueue("#connect_failed");
+                    }
+                    finally { Interlocked.Exchange(ref connecting, 0); }
+                    return;
+                }
                 TcpClient client = new TcpClient();
                 try
                 {
@@ -142,7 +171,7 @@ namespace FarCoopMod.Net
                     if (!ar.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(8)))
                         throw new TimeoutException("no answer in 8s (is the host running, the IP right and port " + port + " allowed in the firewall?)");
                     client.EndConnect(ar);
-                    pendingConnections.Enqueue(new Connection(client));
+                    pendingConnections.Enqueue(new TcpConnection(client));
                 }
                 catch (Exception e)
                 {
@@ -244,7 +273,7 @@ namespace FarCoopMod.Net
             if (c == Peer)
             {
                 Peer = null;
-                if (Role == NetRole.Client) Role = NetRole.None;
+                if (Role == NetRole.Client) { Role = NetRole.None; try { udpClient?.Stop(); } catch { } udpClient = null; }
             }
         }
 
@@ -259,6 +288,10 @@ namespace FarCoopMod.Net
             Peer = null;
             foreach (var c in Peers) c.Close(reason);
             Peers.Clear();
+            try { udpHost?.Stop(); } catch { }
+            udpHost = null;
+            try { udpClient?.Stop(); } catch { }
+            udpClient = null;
             Role = NetRole.None;
         }
 

@@ -7,10 +7,57 @@ using System.Threading;
 namespace FarCoopMod.Net
 {
     /// <summary>
+    /// One peer, whatever the transport (TCP or UDP). Hands whole messages ("frames") to the
+    /// main thread through <see cref="Incoming"/>. Never touches Unity / IL2CPP objects.
+    /// </summary>
+    public abstract class Connection
+    {
+        public readonly ConcurrentQueue<byte[]> Incoming = new ConcurrentQueue<byte[]>();
+        public string RemoteAddress { get; protected set; } = "?";
+
+        protected int closed;
+        public bool Closed => Volatile.Read(ref closed) != 0;
+        public string CloseReason { get; protected set; } = "";
+
+        protected long lastReceiveTicks;
+        public double SecondsSinceReceive =>
+            TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref lastReceiveTicks)).TotalSeconds;
+        protected void Touch() { Interlocked.Exchange(ref lastReceiveTicks, DateTime.UtcNow.Ticks); }
+
+        public long BytesIn, BytesOut, FramesIn, FramesOut;
+
+        public abstract string Transport { get; }
+        /// <summary>Short stats for HUD / telemetry (loss, resends...).</summary>
+        public virtual string Stats => "";
+
+        public abstract void Send(byte[] frame);
+        public abstract void Close(string reason = "closed");
+
+        /// <summary>Messages that are re-sent all the time anyway: losing one is harmless (UDP sends them unreliable).</summary>
+        public static bool IsUnreliable(byte type)
+        {
+            switch ((MsgType)type)
+            {
+                case MsgType.Ping:
+                case MsgType.Pong:
+                case MsgType.Player:
+                case MsgType.PlayerFrom:
+                case MsgType.VehicleState:
+                case MsgType.ItemState:
+                case MsgType.ItemHold:
+                case MsgType.PauseAll:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    /// <summary>
     /// One TCP peer. Length-prefixed frames, a receive thread and a send thread.
     /// Never touches Unity / IL2CPP objects (background threads are not attached to IL2CPP).
     /// </summary>
-    public sealed class Connection
+    public sealed class TcpConnection : Connection
     {
         private const int MaxFrame = 4 * 1024 * 1024;
 
@@ -19,20 +66,13 @@ namespace FarCoopMod.Net
         private readonly BlockingCollection<byte[]> sendQueue =
             new BlockingCollection<byte[]>(new ConcurrentQueue<byte[]>(), 4096);
 
-        public readonly ConcurrentQueue<byte[]> Incoming = new ConcurrentQueue<byte[]>();
-        public readonly string RemoteAddress;
 
-        private int closed;
-        public bool Closed => Volatile.Read(ref closed) != 0;
-        public string CloseReason { get; private set; } = "";
 
-        private long lastReceiveTicks;
-        public double SecondsSinceReceive =>
-            TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref lastReceiveTicks)).TotalSeconds;
 
-        public long BytesIn, BytesOut, FramesIn, FramesOut;
 
-        public Connection(TcpClient client)
+        public override string Transport => "TCP";
+
+        public TcpConnection(TcpClient client)
         {
             tcp = client;
             tcp.NoDelay = true;
@@ -40,13 +80,13 @@ namespace FarCoopMod.Net
             tcp.SendBufferSize = 256 * 1024;
             stream = tcp.GetStream();
             RemoteAddress = client.Client.RemoteEndPoint?.ToString() ?? "?";
-            Interlocked.Exchange(ref lastReceiveTicks, DateTime.UtcNow.Ticks);
+            Touch();
 
             new Thread(ReceiveLoop) { IsBackground = true, Name = "FarCoop-RX" }.Start();
             new Thread(SendLoop) { IsBackground = true, Name = "FarCoop-TX" }.Start();
         }
 
-        public void Send(byte[] frame)
+        public override void Send(byte[] frame)
         {
             if (Closed || frame == null) return;
             try { sendQueue.TryAdd(frame); } catch { /* adding completed */ }
@@ -63,7 +103,7 @@ namespace FarCoopMod.Net
                     if (len <= 0 || len > MaxFrame) throw new InvalidDataException("bad frame length " + len);
                     byte[] buf = reader.ReadBytes(len);
                     if (buf.Length != len) throw new EndOfStreamException();
-                    Interlocked.Exchange(ref lastReceiveTicks, DateTime.UtcNow.Ticks);
+                    Touch();
                     Interlocked.Add(ref BytesIn, len + 4);
                     Interlocked.Increment(ref FramesIn);
                     Incoming.Enqueue(buf);
@@ -102,7 +142,7 @@ namespace FarCoopMod.Net
             catch (Exception e) { Close("send: " + e.GetType().Name + " " + e.Message); }
         }
 
-        public void Close(string reason = "closed")
+        public override void Close(string reason = "closed")
         {
             if (Interlocked.Exchange(ref closed, 1) != 0) return;
             CloseReason = reason;

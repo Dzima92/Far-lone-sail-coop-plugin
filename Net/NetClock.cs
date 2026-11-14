@@ -19,14 +19,34 @@ namespace FarCoopMod.Net
         public static float HostNow => Time.realtimeSinceStartup + offset;
         public static float RenderTime => HostNow - Delay;
 
-        public static void Reset() { init = false; jitter = 0f; Delay = 0.1f; lastHostT = 0f; }
+        public static void Reset() { init = false; jitter = 0f; Delay = 0.1f; lastHostT = 0f; fixedInit = false; }
+
+        // ---- render time for physics steps ----
+        // Unity may run 0, 1 or 2 physics steps in one frame. Reading the wall clock there gave two
+        // steps the same time (vehicle stands still) and then a jump: the client's camera shook.
+        // This clock advances exactly one physics step per step and only slowly leans toward
+        // RenderTime, so the vehicle (and the camera riding on it) moves perfectly evenly.
+        private static bool fixedInit;
+        private static float fixedRender;
+        public static float FixedRenderTime => fixedRender;
+
+        /// <summary>Call once at the start of every FixedUpdate on the client.</summary>
+        public static void TickFixed()
+        {
+            float target = RenderTime;
+            if (!fixedInit) { fixedRender = target; fixedInit = true; return; }
+            fixedRender += Time.fixedDeltaTime;
+            float err = target - fixedRender;
+            if (Mathf.Abs(err) > 0.25f) fixedRender = target;          // big hitch / pause: resync
+            else fixedRender += err * 0.02f;                            // gentle lean, invisible
+        }
 
         /// <summary>Call for every timestamped message from the host.</summary>
         public static void OnHostTime(float hostT)
         {
             float sample = hostT - Time.realtimeSinceStartup;
             if (!init) { offset = sample; init = true; lastHostT = hostT; return; }
-            if (sample > offset) offset = sample;                    // arrived faster than ever: adopt
+            if (sample > offset) offset += (sample - offset) * 0.2f;  // arrived faster: adopt smoothly (no time jumps)
             else offset += (sample - offset) * 0.002f;               // slowly forget old fast samples
             jitter = Mathf.Lerp(jitter, offset - sample, 0.05f);
             float dt = hostT - lastHostT;

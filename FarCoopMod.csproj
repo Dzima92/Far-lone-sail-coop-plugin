@@ -153,6 +153,7 @@
     <Compile Include="Net\CoopNet.cs" />
     <Compile Include="Net\Protocol.cs" />
     <Compile Include="Net\NetClock.cs" />
+    <Compile Include="Net\Udp.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
