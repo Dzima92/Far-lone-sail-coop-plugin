@@ -212,7 +212,7 @@ namespace FarCoopMod
         public void ApplySnapshots()
         {
             if (!HasSnapshot) return;
-            float rt = NetClock.RenderTime;
+            float rt = NetClock.FixedRenderTime;
 
             for (int h = 0; h < hostToLocal.Length; h++)
             {
@@ -306,8 +306,7 @@ namespace FarCoopMod
                     anchors[rb.Pointer] = local;
                     Vector3 p = newPos + newRot * local;
                     p.z = cur.z;          // side view: never out of the depth plane
-                    rb.position = p;
-                    rb.transform.position = p;
+                    rb.position = p;     // only the physics pose: the game's smoothing of the visible body stays intact
                 }
                 catch { }
             }

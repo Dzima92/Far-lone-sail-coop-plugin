@@ -147,6 +147,7 @@ namespace FarCoopMod
             if (IsHost) return;
             Guard("vehicle", () =>
             {
+                NetClock.TickFixed();
                 vehicle.Scan();
                 vehicle.Riders.Clear();
                 var meC = GameAccess.LocalCharacter;
@@ -219,6 +220,7 @@ namespace FarCoopMod
             UpdateBandwidth();
             sb.Append(IsHost ? " | HOST" : IsConnected ? $" | CLIENT#{myId} ping={rttMs:0} delay={NetClock.Delay * 1000f:0}ms" : " | offline");
             sb.Append($" net={kbIn:0.0}/{kbOut:0.0}kB/s");
+            if (!IsHost && net.Peer != null) sb.Append($" {net.Peer.Transport} {net.Peer.Stats}");
             var ch = vehicle.Chassis;
             if (ch != null && GameAccess.Alive(ch))
             {
@@ -238,6 +240,7 @@ namespace FarCoopMod
                 else sb.Append(" no-body");
                 sb.Append($" age={Time.time - r.Avatar.LastUpdateTime:0.00}s");
                 if (IsHost && r.RttMs >= 0) sb.Append($" ping={r.RttMs:0}");
+                if (IsHost && r.Conn != null) sb.Append($" {r.Conn.Transport} {r.Conn.Stats}");
                 if (r.Avatar.PartnerPaused) sb.Append(" paused");
             }
             return sb.ToString();
@@ -490,7 +493,8 @@ namespace FarCoopMod
             FarCoopPlugin.CfgLastHostIp.Value = port == FarCoopPlugin.CfgPort.Value ? ip : ip + ":" + port;
             ResetSession();
             lastJoinAddress = ip + ":" + port;
-            AddLog($"Connecting to {ip}:{port}...");
+            net.JoinTransport = FarCoopPlugin.CfgTransport.Value;
+            AddLog($"Connecting to {ip}:{port} ({net.JoinTransport})...");
             net.Connect(ip, port);
         }
 
@@ -1022,7 +1026,7 @@ namespace FarCoopMod
                 string bodies = IsHost ? $"{vehicle.Bodies.Count} parts" : $"{vehicle.MappedCount} parts";
                 string itemInfo = IsHost ? $"{items.Count} items" : $"{items.Mapped} items";
                 UpdateBandwidth();
-                string extra = $" | net {kbIn:0.0}/{kbOut:0.0} kB/s" + (IsHost ? "" : $" | delay {NetClock.Delay * 1000f:0} ms");
+                string extra = $" | net {kbIn:0.0}/{kbOut:0.0} kB/s" + (IsHost ? "" : $" | delay {NetClock.Delay * 1000f:0} ms | {net.Peer?.Transport}");
                 float energy = vehicle.Energy;
                 string ping = IsHost ? "" : $"Ping {(rttMs < 0 ? "-" : rttMs.ToString("0") + " ms")} | ";
                 GUI.Label(new Rect(cx, cy, cw, 20f),
@@ -1034,6 +1038,7 @@ namespace FarCoopMod
                     if (IsHost && !r.Handshake) continue;
                     string n = r.Label;
                     if (IsHost && r.RttMs >= 0) n += $" {r.RttMs:0}ms";
+                    if (IsHost && r.Conn != null) n += " " + r.Conn.Transport;
                     if (!r.Puppet.Exists) n += " (no body)";
                     if (r.Avatar.PartnerPaused) n += " (paused)";
                     names.Add(n);

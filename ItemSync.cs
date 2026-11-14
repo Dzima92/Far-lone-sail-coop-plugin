@@ -44,6 +44,7 @@ namespace FarCoopMod
         private Snap[] snaps = new Snap[0];
         private PoseBuffer[] bufs = new PoseBuffer[0];
         private bool[] bufLocal = new bool[0];
+        private readonly Dictionary<int, KeyValuePair<Vector3, Quaternion>> welded = new Dictionary<int, KeyValuePair<Vector3, Quaternion>>();
         private float snapTime;
         private readonly Dictionary<IntPtr, bool> originalKinematic = new Dictionary<IntPtr, bool>();
 
@@ -317,7 +318,7 @@ namespace FarCoopMod
         public void Apply(Item heldLocally, VehicleSync vehicle)
         {
             IntPtr held = heldLocally != null ? heldLocally.Pointer : IntPtr.Zero;
-            float rt = NetClock.RenderTime;
+            float rt = NetClock.FixedRenderTime;
 
             // track which item we own
             Entry heldEntry = null;
@@ -376,6 +377,11 @@ namespace FarCoopMod
                     {
                         // relative to the vehicle: place it on OUR vehicle's pose of this very step
                         if (!vehicle.HasFramePose) continue;
+                        // "weld": a box resting in the vehicle keeps its exact spot; tiny host-side
+                        // physics wobble (< 2 cm / 3 deg) is ignored, so it never shakes on clients
+                        if (welded.TryGetValue(h, out var wp) && (wp.Key - target).sqrMagnitude < 0.0004f && Quaternion.Angle(wp.Value, targetRot) < 3f)
+                        { target = wp.Key; targetRot = wp.Value; }
+                        else welded[h] = new KeyValuePair<Vector3, Quaternion>(target, targetRot);
                         target = vehicle.FramePos + vehicle.FrameRot * target;
                         targetRot = vehicle.FrameRot * targetRot;
                     }
@@ -655,6 +661,7 @@ namespace FarCoopMod
             snaps = new Snap[0];
             bufs = new PoseBuffer[0];
             bufLocal = new bool[0];
+            welded.Clear();
             Mapped = 0;
         }
     }
