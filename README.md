@@ -16,6 +16,15 @@ fuel and boxes are synced.
 - The game only pauses when **both** players open the pause menu
 - RESUME menu skipped automatically at game start
 
+## Quick install (Windows)
+
+Put `Install-FarCoop.bat` and `FarCoopMod.dll` into your FAR: Lone Sails folder (next to
+`FarLoneSails.exe`) and run the .bat. It downloads and unpacks BepInEx 6.0.0-pre.1 and copies the
+mod into `BepInEx\plugins`. You can also drag one or more game folders onto the .bat, or put it in a
+folder that contains several game copies. Then start the game once and wait for the first-time setup.
+
+The manual steps below do the same thing.
+
 ## Installation (do this on both PCs)
 
 1. **Download BepInEx 6.0.0-pre.1 for IL2CPP x64:**

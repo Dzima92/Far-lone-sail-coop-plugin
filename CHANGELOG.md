@@ -1,5 +1,30 @@
 # Changelog
 
+<<<<<<< Updated upstream
+=======
+## v5.1.1
+- Fixed (regression from v5.0.1): the ramp did not open for clients walking up to the vehicle. Only the trigger that switches the hull now ignores other players' bodies; ramp, lift and every other trigger react to them again.
+
+## v5.1.0
+- Live sync (experimental, `[Sync] LiveSync`): the host watches the whole vehicle; every part that starts to move (needles, levers, pistons, buttons...) is announced and its pose streamed to clients, which show it after the game's own animations. Steam, vehicle health and every module's health/fire are streamed too.
+
+## v5.0.3
+- Telemetry: two more lines per second on every PC. `VEH` = fuel, steam, speed, brakes, health, distance, engine button, sails, every module's health and fire state. `MOVE` = which vehicle parts moved in the last second (relative to the vehicle), biggest first. Comparing host and client files shows what is not synced yet.
+
+## v5.0.2
+- Fixed: a box burned on the host stayed visible on clients and could be taken and burned a second time. The host's "used" state is now mirrored (hidden, not takeable).
+- Test helper: `-farcoop-window X,Y,W,H` opens the game in a small window at a fixed spot (Test-*-Small.bat: three 500x300 windows side by side).
+
+## v5.0.1
+- Fixed: when any player left the vehicle, the hull closed for everyone (and opened again when they came back). The vehicle's trigger boxes now ignore other players' invisible bodies; only your own character opens/closes the hull. Telemetry logs every cover change.
+
+## v5.0.0
+- UDP networking like most real-time games: snapshots/positions/input/ping go unreliable (a lost one is skipped, no freezes), joins/items/hose/buttons go reliable + ordered (numbered, acknowledged, re-sent). Messages packed into <=1200-byte packets, big ones fragmented. The host accepts UDP and TCP on the same port; a client chooses with `[Network] Transport = UDP | TCP`.
+- Resting boxes in the vehicle are "welded" on clients: host-side wobble under 2 cm / 3 deg is ignored, so they never shake.
+- Fixed: client camera shaking. The client's vehicle now advances exactly one physics step per step (a smooth clock instead of the wall clock, which gave two steps the same time and then a jump), clock corrections are gradual, and riders keep the game's own smoothing of their visible body.
+- HUD and telemetry show the transport and UDP stats (rtt, resent, lost, unacked). Protocol 6.
+
+>>>>>>> Stashed changes
 ## v4.2.2
 - Fixed: on a driving vehicle clients walked slower to the left (backwards) than to the right. The game's own extra push is learned while standing and removed while walking too.
 

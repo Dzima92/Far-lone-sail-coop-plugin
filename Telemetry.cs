@@ -53,6 +53,15 @@ namespace FarCoopMod
             events.Append(" | ").Append(DateTime.Now.ToString("ss.f")).Append(' ').Append(what);
         }
 
+        /// <summary>Extra line (vehicle probe).</summary>
+        public static void Line(string text)
+        {
+            if (!Enabled) return;
+            Open();
+            if (file == null) return;
+            try { file.WriteLine(DateTime.Now.ToString("HH:mm:ss.f") + " " + text); } catch { }
+        }
+
         /// <summary>Every frame (Update).</summary>
         public static void Frame()
         {

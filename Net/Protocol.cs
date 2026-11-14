@@ -22,6 +22,9 @@ namespace FarCoopMod.Net
         PlayerInfo = 15,    // host -> clients: [player id][name]
         PlayerLeft = 16,    // host -> clients: [player id]
         HoseFrom = 17,      // host -> clients: [player id][path][planted]
+        LiveDefine = 19,    // host -> clients: [id][path] of vehicle parts that started to move
+        LiveParts = 20,     // host -> clients: local poses of those parts
+        LiveValues = 21,    // host -> clients: steam, health, module health/fire
         PauseAll = 18,      // host -> clients: everybody is in the pause menu
     }
 

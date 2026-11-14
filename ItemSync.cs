@@ -23,6 +23,8 @@ namespace FarCoopMod
             public Vector3 LastPos;
             public Quaternion LastRot;
             public bool LastLocal;
+            public bool LastUsed;
+            public bool ShownUsed;   // client: what we applied
             public bool Gone;
         }
 
@@ -203,7 +205,9 @@ namespace FarCoopMod
                 else { var t = e.Item.transform; pos = t.position; rot = t.rotation; }
                 bool loc = haveFrame && InVehicle(e);
                 if (loc) { pos = cinv * (pos - cp); rot = cinv * rot; }
-                if (full || loc != e.LastLocal || (pos - e.LastPos).sqrMagnitude > 0.0001f || Quaternion.Angle(rot, e.LastRot) > 0.5f)
+                bool usedNow = false;
+                try { usedNow = e.Item.IsUsed(); } catch { }
+                if (full || loc != e.LastLocal || usedNow != e.LastUsed || (pos - e.LastPos).sqrMagnitude > 0.0001f || Quaternion.Angle(rot, e.LastRot) > 0.5f)
                 {
                     idxs.Add(i); poses.Add(new KeyValuePair<Vector3, Quaternion>(pos, rot)); locals.Add(loc);
                 }
@@ -222,6 +226,7 @@ namespace FarCoopMod
                 byte flags = 0;
                 if (alive) flags |= 1;
                 if (alive) { try { if (e.Item.IsTaken()) flags |= 2; } catch { } }
+                if (alive) { bool u = false; try { u = e.Item.IsUsed(); } catch { } if (u) flags |= 8; e.LastUsed = u; }
                 if (locals[k]) flags |= 4;
                 w.Write(flags);
                 if (!alive) continue;
@@ -276,6 +281,7 @@ namespace FarCoopMod
                 {
                     s.Valid = true;
                     s.Held = (flags & 2) != 0;
+                    ApplyUsed(i, (flags & 8) != 0);
                     s.Pos = r.ReadVector3();
                     s.Rot = r.ReadQuatC();
                     s.Vel = r.ReadVector3();
@@ -289,6 +295,28 @@ namespace FarCoopMod
                 }
             }
             snapTime = Time.time;
+        }
+
+        /// <summary>
+        /// Client: an item the host already burned / used. The game may keep a used item around
+        /// (hidden, recycled) instead of destroying it - then our copy stayed visible and could be
+        /// taken and burned a second time. Mirror the "used" state: hidden and not takeable.
+        /// </summary>
+        private void ApplyUsed(int hostIdx, bool used)
+        {
+            if (hostIdx >= hostToLocal.Length) return;
+            int li = hostToLocal[hostIdx];
+            if (li < 0) return;
+            var e = local[li];
+            if (e.Gone || !GameAccess.Alive(e.Item) || e.ShownUsed == used) return;
+            // never take an item out of our own hands
+            if (ownEntry == e && ownHeld) return;
+            e.ShownUsed = used;
+            try { e.Item.SetUsed(used); } catch { }
+            try { e.Item.ShowMesh(!used); } catch { }
+            try { e.Item.EnablePhysics(!used, null); } catch { }
+            FarCoopPlugin.Logger.LogInfo($"Item {(used ? "used up on the host - hidden here" : "back in use")}: {e.Key}");
+            Telemetry.Event((used ? "item used " : "item unused ") + e.Item.name);
         }
 
         private void HideGone(int hostIdx)

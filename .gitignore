@@ -1,5 +1,23 @@
+# build output
 bin/
 obj/
+
+# IDE / per-user files
 .vs/
+.vscode/
 *.user
+*.suo
+
+# old experiments
 _old_v1/
+
+# AI session notes (not needed to build or play)
+HANDOFF.md
+CLAUDE.md
+AGENTS.md
+*.ai.md
+
+# local test helpers and logs
+Tools/Test-*.bat
+Tools/Stop-Server.bat
+*.log

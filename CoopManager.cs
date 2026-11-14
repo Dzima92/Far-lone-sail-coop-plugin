@@ -28,6 +28,7 @@ namespace FarCoopMod
 
         private void Update() { CoopSession.Instance?.Update(); }
         private void FixedUpdate() { CoopSession.Instance?.FixedUpdate(); }
+        private void LateUpdate() { CoopSession.Instance?.LateUpdate(); }
         private void OnGUI() { CoopSession.Instance?.OnGUI(); }
         private void OnApplicationQuit() { CoopSession.Instance?.Quit(); }
     }
@@ -120,6 +121,7 @@ namespace FarCoopMod
             PartnerInput.ResetFrame();
             PartnerInput.Tick();
             Guard("cmdline", CommandLineAutomation);
+            Guard("window", WindowPlacer.Tick);
             Guard("hotkeys", HandleHotkeys);
             Guard("net", PumpNetwork);
             Guard("pause", HandlePause);
@@ -128,7 +130,13 @@ namespace FarCoopMod
             Guard("avatar", () => { foreach (var r in remotes) r.Avatar.Update(vehicle, Time.deltaTime); });
             if (IsConnected) Guard("cover", CoverSync.Tick);
             Guard("telemetry", () => { Telemetry.Frame(); if (Telemetry.Enabled) Telemetry.Flush(TelemetrySession()); });
+            Guard("probe", () => VehicleProbe.Tick(vehicle));
             Guard("diag", Diagnostics);
+        }
+
+        public void LateUpdate()
+        {
+            if (IsConnected && !IsHost) Guard("live", () => LiveSync.Apply(Time.deltaTime));
         }
 
         public void FixedUpdate()
@@ -219,6 +227,11 @@ namespace FarCoopMod
             UpdateBandwidth();
             sb.Append(IsHost ? " | HOST" : IsConnected ? $" | CLIENT#{myId} ping={rttMs:0} delay={NetClock.Delay * 1000f:0}ms" : " | offline");
             sb.Append($" net={kbIn:0.0}/{kbOut:0.0}kB/s");
+<<<<<<< Updated upstream
+=======
+            if (IsConnected && LiveSync.Enabled) sb.Append(IsHost ? $" live={LiveSync.ActiveCount}/{LiveSync.WatchedCount}" : $" live={LiveSync.ClientParts}(missing {LiveSync.Unresolved})");
+            if (!IsHost && net.Peer != null) sb.Append($" {net.Peer.Transport} {net.Peer.Stats}");
+>>>>>>> Stashed changes
             var ch = vehicle.Chassis;
             if (ch != null && GameAccess.Alive(ch))
             {
@@ -371,6 +384,7 @@ namespace FarCoopMod
                     else if (a == "-farcoop-dedicated") { cmdHost = true; Dedicated = true; }
                     else if (a == "-farcoop-join" && i + 1 < args.Length) cmdJoin = args[++i];
                     else if (a == "-farcoop-name" && i + 1 < args.Length) overrideName = args[++i];
+                    else if (a == "-farcoop-window" && i + 1 < args.Length) WindowPlacer.Request(args[++i]);
                 }
                 if (Dedicated)
                 {
@@ -515,6 +529,7 @@ namespace FarCoopMod
             foreach (var r in remotes) r.Destroy();
             remotes.Clear();
             items.ReleaseAll();
+            LiveSync.Reset();
             if (Time.timeScale < 0.99f && !localPaused) Time.timeScale = 1f;
         }
 
@@ -690,6 +705,7 @@ namespace FarCoopMod
                     c.Send(vehicle.BuildBodiesMessage());
                     items.Scan(true);
                     c.Send(items.BuildListMessage());
+                    { var defs = LiveSync.AllDefines(); if (defs != null) c.Send(defs); }
                     // who is already here
                     if (!Dedicated) c.Send(PlayerInfoMsg(0, MyName));
                     foreach (var o in remotes)
@@ -813,6 +829,15 @@ namespace FarCoopMod
                 case MsgType.PauseAll:
                     hostAllPaused = r.ReadBoolean();
                     break;
+                case MsgType.LiveDefine:
+                    LiveSync.ReadDefine(r);
+                    break;
+                case MsgType.LiveParts:
+                    LiveSync.ReadParts(r);
+                    break;
+                case MsgType.LiveValues:
+                    LiveSync.ReadValues(r, vehicle);
+                    break;
                 case MsgType.VehicleBodies:
                     vehicle.Scan(true); vehicle.ReadBodiesMessage(r);
                     break;
@@ -914,6 +939,7 @@ namespace FarCoopMod
                 if (vehicle.Bodies.Count > 0) Broadcast(vehicle.BuildStateMessage(), null);
                 if (items.Scan()) Broadcast(items.BuildListMessage(), null);
                 Broadcast(items.BuildStateMessage(vehicle.Chassis), null);
+                foreach (var m in LiveSync.HostTick(vehicle)) Broadcast(m, null);
 
                 bool all = EveryonePaused();
                 if (all != lastSentAllPaused || Time.unscaledTime >= nextPauseSend)

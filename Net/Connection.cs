@@ -7,6 +7,58 @@ using System.Threading;
 namespace FarCoopMod.Net
 {
     /// <summary>
+<<<<<<< Updated upstream
+=======
+    /// One peer, whatever the transport (TCP or UDP). Hands whole messages ("frames") to the
+    /// main thread through <see cref="Incoming"/>. Never touches Unity / IL2CPP objects.
+    /// </summary>
+    public abstract class Connection
+    {
+        public readonly ConcurrentQueue<byte[]> Incoming = new ConcurrentQueue<byte[]>();
+        public string RemoteAddress { get; protected set; } = "?";
+
+        protected int closed;
+        public bool Closed => Volatile.Read(ref closed) != 0;
+        public string CloseReason { get; protected set; } = "";
+
+        protected long lastReceiveTicks;
+        public double SecondsSinceReceive =>
+            TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref lastReceiveTicks)).TotalSeconds;
+        protected void Touch() { Interlocked.Exchange(ref lastReceiveTicks, DateTime.UtcNow.Ticks); }
+
+        public long BytesIn, BytesOut, FramesIn, FramesOut;
+
+        public abstract string Transport { get; }
+        /// <summary>Short stats for HUD / telemetry (loss, resends...).</summary>
+        public virtual string Stats => "";
+
+        public abstract void Send(byte[] frame);
+        public abstract void Close(string reason = "closed");
+
+        /// <summary>Messages that are re-sent all the time anyway: losing one is harmless (UDP sends them unreliable).</summary>
+        public static bool IsUnreliable(byte type)
+        {
+            switch ((MsgType)type)
+            {
+                case MsgType.Ping:
+                case MsgType.Pong:
+                case MsgType.Player:
+                case MsgType.PlayerFrom:
+                case MsgType.VehicleState:
+                case MsgType.ItemState:
+                case MsgType.ItemHold:
+                case MsgType.LiveParts:
+                case MsgType.LiveValues:
+                case MsgType.PauseAll:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    /// <summary>
+>>>>>>> Stashed changes
     /// One TCP peer. Length-prefixed frames, a receive thread and a send thread.
     /// Never touches Unity / IL2CPP objects (background threads are not attached to IL2CPP).
     /// </summary>

@@ -147,6 +147,9 @@
     <Compile Include="HoseSync.cs" />
     <Compile Include="CoverSync.cs" />
     <Compile Include="Telemetry.cs" />
+    <Compile Include="VehicleProbe.cs" />
+    <Compile Include="LiveSync.cs" />
+    <Compile Include="WindowPlacer.cs" />
     <Compile Include="PartnerInput.cs" />
     <Compile Include="PartnerPuppet.cs" />
     <Compile Include="Net\Connection.cs" />
