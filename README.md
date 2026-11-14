@@ -103,3 +103,7 @@ Build Release; the DLL is copied to `BepInEx\plugins` automatically.
 Made by Dzima92. Not affiliated with Okomotive or Mixtvision.
 
 My contacts discord: milky_way7084
+
+## Playtest 
+<img width="1282" height="751" alt="PlayTest" src="https://github.com/user-attachments/assets/37e0bf7a-77c5-4a9c-a4b8-0762bb7365b7" />
+
